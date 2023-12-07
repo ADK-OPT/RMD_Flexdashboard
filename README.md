@@ -10,5 +10,5 @@ Flex Dashboard rendered from a Rmarkdown file.
 - Get average value of certain regular tasks
 
   ## View
-  view the output in the .html file
+  View the output in the .html file by clicking the link AND pressing "Download Raw File".
   https://github.com/ADK-OPT/RMD_Flexdashboard/blob/main/PresentationDashboard.html 
