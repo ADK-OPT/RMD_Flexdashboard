@@ -1,0 +1,316 @@
+---
+title: "Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    source_code: embed
+---
+
+<style>                     
+.navbar, [data-toggle=tab], .navbar-brand  {   background-color:darkgreen!important;   border-color:black;   color:whtie!important;
+}
+
+
+</style>  
+
+
+# Project Budget Hours
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(readxl)
+library(kableExtra)
+library(plotly)
+library(DT)
+library(lubridate)
+```
+
+```{r include=FALSE}
+ProjectA <- read_excel("Hours_Predict_R.xlsx",
+                       sheet = "Project A",
+                       range = "B2:G100",
+                       col_names = TRUE)
+
+ProjectB <- read_excel("Hours_Predict_R.xlsx",
+                       sheet = "Project B",
+                       range = "B2:G100",
+                       col_names = TRUE)
+
+ProjectC <- read_excel("Hours_Predict_R.xlsx",
+                       sheet = "Project C",
+                       range = "B2:G100",
+                       col_names = TRUE)
+
+
+summary(ProjectA)
+summary(ProjectB)
+summary(ProjectC)
+
+### to get this we will need to mutate
+ProjectA <- ProjectA %>% 
+  mutate(ProjectA = "ProjectA")
+ProjectB <- ProjectB %>% 
+  mutate(ProjectA = "ProjectB")
+ProjectC <- ProjectC %>% 
+  mutate(ProjectA = "ProjectC")
+
+Project_data <- bind_rows(ProjectA,ProjectB,ProjectC)
+
+### Join the table into one
+
+Project_data <- bind_rows(ProjectA,ProjectB,ProjectC) ##Becasue they have the same column names, we can bind the data frame rows.
+
+Project_data <- Project_data %>%   ##Deletes rows with NA
+  na.omit()
+
+Project_data <- Project_data %>% 
+  rename(Project_Name = ProjectA)
+
+### New row using Calculation: Mutate
+# Mutate(new_col_name = calculation you want)
+
+Project_data <- Project_data %>%
+  mutate(percent = round((Actuals/Budget)*100,2))
+
+Project_data <-Project_data %>% 
+  mutate(OverUnder = case_when(Budget > Actuals ~ "Under Budget",  ## Case_when can be thought of an as IF function
+                               Budget == Actuals ~ "On Budget",
+                               TRUE ~ "Over Budget"))
+
+
+## Count the number of tasks over or under budget
+over_under_counts <- Project_data %>% 
+  count(OverUnder) %>% 
+  rename(Count = n) %>% 
+  rename('Budget Status' = OverUnder) ##rename column name rename(new_name = previous_name)
+```
+
+
+Column {data-width=640}
+-----------------------------------------------------------------------
+
+### Project hours
+
+```{r}
+
+windowsFonts(`Century Gothic` = windowsFont("Century Gothic"))
+g <- ggplot(Project_data, aes(x = Task, y = Actuals, fill = OverUnder, text = paste(percent, "%")))+
+  geom_col()+
+  facet_wrap(vars(Project_Name), scales = "free", shrink = FALSE, ncol = 3)+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, family = "Century Gothic"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(family = "Century Gothic", size = 15),
+        panel.background = element_rect(fill = "white"),
+        strip.background = element_rect(fill = "white"),
+        plot.title = element_text(hjust = 0.5, family = "Century Gothic", size = 18),
+        legend.title = element_text(family = "Century Gothic"))+
+  scale_fill_manual(values = c("red","darkgreen"))+
+  labs(title = "Project Hours",
+       fill = "Budget Status")+
+  ylab("Actuals (hrs)")
+ggplotly(g)
+```
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+
+### Total Task Budget Status
+
+```{r}
+# over_under_counts %>% kbl() %>% 
+#   kable_styling(bootstrap_options = c("hover"))
+
+valueBox(value = over_under_counts$Count[1], icon = "fa-bell", color = "#ffcccb",caption = "Number of Tasks Over Budget")
+
+```
+
+### Tasks Under Budget
+
+```{r}
+valueBox(value = over_under_counts$Count[2], icon = "fa-check", color = "#2ff900")
+
+```
+
+```{r include=FALSE}
+calendar_data_excel <- read_excel("flexDashBoard_ghentdata.xlsx",
+                                  sheet = "Sheet1",
+                                  range = "B1:V50")
+
+calendar_data_excel <- calendar_data_excel %>% 
+  pivot_longer(cols = c(2:12),
+               values_to = "status",
+               names_to = "month")
+calendar_data_excel <- calendar_data_excel %>%
+  pivot_longer(cols = c(2:10),
+               values_to = "name",
+               names_to = "member")
+calendar_data_excel <- calendar_data_excel %>% drop_na()
+
+start_end_dates <- read_excel("flexDashBoard_ghentdata.xlsx",
+                              sheet = "Sheet2",
+                              range = "B2:D5")
+join_the_tables <- inner_join(calendar_data_excel, start_end_dates, by= "Projects")
+
+join_the_tables$Start <- ymd(join_the_tables$Start)
+join_the_tables$End <- ymd(join_the_tables$End)
+
+new_table <- join_the_tables %>% 
+  pivot_longer(cols = c(6:7),
+               names_to = "start/end",
+               values_to = "dates")
+
+```
+
+### Staff Project Schedules
+```{r}
+ggplot(new_table, aes(x= dates, y= name, color= Projects))+
+  geom_line(alpha = 0.5, size =5)+
+  geom_vline(xintercept = today(), color = "black", size = .5, alpha= 0.7)+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, family = "Century Gothic"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(family = "Century Gothic", size = 15),
+        axis.text.y = element_text(family = "Century Gothic", size = 10),
+        panel.background = element_rect(fill = "white"),
+        strip.background = element_rect(fill = "white"),
+        legend.background = element_rect(color = "white"),
+        legend.title.align = 0.5,
+        legend.text = element_text(family = "Century Gothic"),
+        legend.key = element_rect(fill = "white"),
+        plot.title = element_text(hjust = 0.5, family = "Century Gothic", size = 18),
+        legend.title = element_text(family = "Century Gothic"))+
+  xlab("Dates")+
+  ylab("Names")+
+  ggtitle("Staff Project Timelines")
+
+```
+
+# Budget Used
+
+
+
+Column {data-width=640}
+-----------------------------------------------------------------------
+### Hours Spent on Projects by Employee
+```{r}
+ggplot(data = Project_data, aes(x= reorder(`Team Member`,-Actuals),y= Actuals))+geom_col(fill = "darkgreen")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, family = "Century Gothic"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(family = "Century Gothic", size = 15),
+        panel.background = element_rect(fill = "white"),
+        strip.background = element_rect(fill = "white"),
+        plot.title = element_text(hjust = 0.5, family = "Century Gothic", size = 18),
+        legend.title = element_text(family = "Century Gothic"))+
+  ylab("Proejct Hours")+
+  ggtitle("Time Spent on Projects")
+
+```
+
+
+
+Column {data-width=400}
+-----------------------------------------------------------------------
+
+```{r include=FALSE}
+budget_spend<- data.frame(buget_percent = c(85.3,56.8,18.65))
+
+
+gauge(budget_spend$buget_percent[1], min = 0, max = 100, symbol = "%", gaugeSectors(
+  success = c(0,20),warning = c(21,70),danger = c(71,100)
+))
+```
+
+### ProjectA % of Budget Used
+```{r}
+
+
+gauge(budget_spend$buget_percent[1], min = 0, max = 100, symbol = "%", gaugeSectors(
+  success = c(0,20),warning = c(21,70),danger = c(71,100)
+))
+```
+
+
+### ProjectB % of Budget Used
+```{r}
+ gauge(budget_spend$buget_percent[2], min = 0, max = 100, symbol = "%", gaugeSectors(
+  success = c(0,20),warning = c(21,70),danger = c(71,100)
+))
+```
+
+
+
+### ProjectC % of Budget Used
+```{r}
+
+gauge(budget_spend$buget_percent[3], min = 0, max = 100, symbol = "%", gaugeSectors(
+  success = c(0,20),warning = c(21,70),danger = c(71,100)
+))
+
+```
+
+<!-- ### Plot -->
+<!-- ```{r} -->
+<!-- ggplot(data = Project_data, aes(Role, Actuals))+geom_point() -->
+<!-- ``` -->
+
+
+
+Column {data-width=200}
+-----------------------------------------------------------------------
+
+### Average CBA Hours
+```{r include=FALSE}
+#icons
+# https://ionic.io/ionicons/v2/cheatsheet.html
+
+projects_CBA <- Project_data %>% 
+  filter(Category == "CBA")
+
+CBA_mean_time_to_complete <- round(mean(projects_CBA$Actuals))
+
+projects_facillites <- Project_data %>% 
+  filter(Category == "Facilites")
+	
+Facilites_mean_time_to_complete <- round(mean(projects_facillites$Actuals))
+
+Transportation_mean_time <- Project_data %>% 
+  filter(Category == "Transportation")
+
+Trasnsportation_mean_time_to_complete <- round(mean(Transportation_mean_time$Actuals))
+
+projects_staffing <- Project_data %>% 
+  filter(Category == "Staffing")
+
+staffing_mean_complete_time <- round(mean(projects_staffing$Actuals))
+
+
+```
+
+
+```{r}
+valueBox(CBA_mean_time_to_complete, color = "#8a2be2", icon = "fa-pen")
+
+
+```
+
+
+
+### Average Facilities Hours
+```{r}
+valueBox(Facilites_mean_time_to_complete, color = "green", icon = "fa-school", caption = " Average Facilities Hours")
+
+```
+
+
+### Transportation
+```{r}
+valueBox(Trasnsportation_mean_time_to_complete, color = "yellow", icon = "fa-bus", caption = " Average Transportation Hours")
+
+```
+
+### Staffing
+```{r}
+valueBox(staffing_mean_complete_time, color = "lightblue", icon = "ion-android-people", caption = "Average Staffing Hours")
+```
+
+
